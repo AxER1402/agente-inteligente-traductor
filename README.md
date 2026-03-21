@@ -2,6 +2,17 @@
 
 Paso 1: **Detección de mano y extracción de landmarks** usando OpenCV, MediaPipe y NumPy.
 
+## Docker
+
+```bash
+docker compose up --build
+```
+
+## Docker comando para entrar al bash
+```bash
+docker compose exec gesture_detector bash
+```
+
 ## Instalación
 
 ```bash
