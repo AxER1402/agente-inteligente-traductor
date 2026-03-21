@@ -1,0 +1,24 @@
+services:
+  gesture_detector:
+    build: .
+    # Dar privilegios para acceder de forma sencilla a interfaces y hardware global
+    privileged: true
+    # Mapear la cámara web al contenedor (normalmente /dev/video0)
+    devices:
+      - /dev/video0:/dev/video0
+    # Pasar el servidor X11 para poder abrir ventanas de OpenCV
+    volumes:
+      - .:/app
+      - /tmp/.X11-unix:/tmp/.X11-unix
+    # environment:
+    environment:
+      - PYTHONUNBUFFERED=1
+      # Decirle de dónde debe leer la interfaz gráfica
+      - DISPLAY=$DISPLAY
+      - QT_X11_NO_MITSHM=1
+    network_mode: "host"
+    ipc: host
+    tty: true
+    stdin_open: true
+    # Mantén el contenedor despierto en segundo plano para que puedas ejecutar scripts manualmente:
+    command: sleep infinity

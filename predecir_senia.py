@@ -70,7 +70,7 @@ def main():
                 confianza = max(proba)
 
                 cv2.putText(
-                    frame, f"Seña: {etiqueta} ({confianza:.0%})",
+                    frame, f"Sena: {etiqueta} ({confianza:.0%})",
                     (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 255, 0), 3
                 )
             else:
@@ -79,7 +79,7 @@ def main():
                     (10, alto // 2), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2
                 )
 
-            cv2.imshow("Predecir Seña", frame)
+            cv2.imshow("Predecir Sena", frame)
             if cv2.waitKey(1) & 0xFF == ord("q"):
                 break
 
