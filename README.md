@@ -2,30 +2,40 @@
 
 Paso 1: **Detección de mano y extracción de landmarks** usando OpenCV, MediaPipe y NumPy.
 
-## Docker
+## Ejecutar el Proyecto
+Para poder abrir ventanas de video y usar la cámara web, hay dos maneras de ejecutar este proyecto dependiendo de tu sistema operativo:
 
+### Opción A: macOS y Windows (Recomendado)
+Dado que Docker Desktop (en macOS y Windows) corre sobre una máquina virtual que no tiene acceso directo a la cámara web (`/dev/video0`), **la forma correcta de ejecutarlo es de manera nativa** usando un entorno virtual de Python.
+
+1. Abre tu terminal y navega a la carpeta del proyecto.
+2. Crea un entorno virtual e instálalo:
 ```bash
-docker compose up --build
-```
+# Crear entorno virtual
+python -m venv venv
 
-## Docker comando para entrar al bash
-```bash
-docker compose exec gesture_detector bash
-```
+# Activar el entorno virtual (macOS/Linux)
+source venv/bin/activate
+# (En Windows usa: venv\Scripts\activate)
 
-## Instalación
-
-```bash
+# Instalar dependencias
 pip install -r requirements.txt
 ```
-
-## Uso
-
-Ejecuta el detector de mano:
-
+3. Ejecuta el detector de mano:
 ```bash
 python detector_mano.py
 ```
+
+### Opción B: Linux (Docker)
+En Linux puro, Docker sí puede acceder directamente a los dispositivos USB y de video del host.
+```bash
+# Construir y levantar
+docker compose up --build
+
+# Entrar al bash del contenedor (opcional)
+docker compose exec gesture_detector bash
+```
+
 
 ### Controles
 

@@ -1,0 +1,175 @@
+"""
+Crea palabras automáticamente detectando señas sostenidas.
+Abre la cámara, detecta la mano y forma una palabra a partir de las detecciones.
+"""
+
+import os
+import cv2
+import joblib
+import mediapipe as mp
+import numpy as np
+
+mp_hands = mp.solutions.hands
+mp_drawing = mp.solutions.drawing_utils
+mp_drawing_styles = mp.solutions.drawing_styles
+
+ARCHIVO_MODELO = "modelo.pkl"
+
+# Configuración de los umbrales (frames)
+FRAMES_PARA_LETRAS = 20  # ~1 segundo a 20-30 FPS
+FRAMES_PARA_ESPACIO = 40  # ~1.5 - 2 segundos sin manos para registrar un espacio
+
+
+def extraer_landmarks(hand_landmarks) -> np.ndarray:
+    """Extrae los 21 puntos (x, y, z) como vector de 63 valores."""
+    puntos = []
+    for lm in hand_landmarks.landmark:
+        puntos.extend([lm.x, lm.y, lm.z])
+    return np.array(puntos, dtype=np.float32).reshape(1, -1)
+
+
+def main():
+    if not os.path.exists(ARCHIVO_MODELO):
+        print(f"Error: No existe {ARCHIVO_MODELO}")
+        print("Ejecuta primero: python entrenar_modelo.py")
+        return
+
+    modelo = joblib.load(ARCHIVO_MODELO)
+    print("Modelo cargado. Modo de Creación de Palabras Automático iniciado.\n")
+
+    cap = cv2.VideoCapture(0)
+    if not cap.isOpened():
+        print("Error: No se pudo abrir la cámara.")
+        return
+
+    # Variables de estado para la construcción de palabras
+    palabra_actual = ""
+    prediccion_actual = None
+    conteo_frames_letra = 0
+    ultima_letra_agregada = None
+    conteo_frames_sin_mano = 0
+
+    with mp_hands.Hands(
+        model_complexity=0,
+        min_detection_confidence=0.5,
+        min_tracking_confidence=0.5,
+        max_num_hands=1,
+    ) as hands:
+        while cap.isOpened():
+            exito, frame = cap.read()
+            if not exito:
+                break
+
+            frame = cv2.flip(frame, 1)
+            alto, ancho, _ = frame.shape
+            rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            resultados = hands.process(rgb)
+
+            if resultados.multi_hand_landmarks:
+                # Reiniciar el contador de espacio ya que hay una mano visible
+                conteo_frames_sin_mano = 0
+                
+                hand_landmarks = resultados.multi_hand_landmarks[0]
+                mp_drawing.draw_landmarks(
+                    frame,
+                    hand_landmarks,
+                    mp_hands.HAND_CONNECTIONS,
+                    mp_drawing_styles.get_default_hand_landmarks_style(),
+                    mp_drawing_styles.get_default_hand_connections_style(),
+                )
+                
+                puntos = extraer_landmarks(hand_landmarks)
+                etiqueta = modelo.predict(puntos)[0]
+                proba = modelo.predict_proba(puntos)[0]
+                confianza = max(proba)
+
+                if confianza > 0.6:  # Solo confiar si hay buena probabilidad
+                    # Si la etiqueta es la misma que estamos viendo, incrementamos contador
+                    if etiqueta == prediccion_actual:
+                        conteo_frames_letra += 1
+                    else:
+                        prediccion_actual = etiqueta
+                        conteo_frames_letra = 1
+                    
+                    # Logica para agregar una letra a la palabra
+                    if conteo_frames_letra >= FRAMES_PARA_LETRAS:
+                        if etiqueta != ultima_letra_agregada:
+                            palabra_actual += etiqueta
+                            ultima_letra_agregada = etiqueta
+                            conteo_frames_letra = 0  # Reiniciar despues de agregar
+
+                # UI: Mostrar Progreso para registrar Letra
+                cv2.putText(
+                    frame, f"Sena detectada: {etiqueta} ({confianza:.0%})",
+                    (10, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2
+                )
+                
+                progreso = min(conteo_frames_letra / FRAMES_PARA_LETRAS, 1.0)
+                if progreso > 0 and etiqueta != ultima_letra_agregada:
+                    cv2.rectangle(frame, (10, 60), (10 + int(200 * progreso), 80), (0, 255, 255), -1)
+                    cv2.rectangle(frame, (10, 60), (210, 80), (255, 255, 255), 2)
+                elif etiqueta == ultima_letra_agregada:
+                    # Mostrar que la letra ya fue capturada y espera a que retires la mano o cambies de seña
+                    cv2.rectangle(frame, (10, 60), (210, 80), (0, 255, 0), -1)
+                    cv2.putText(frame, "Capturada", (60, 75), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2)
+
+            else:
+                conteo_frames_sin_mano += 1
+                prediccion_actual = None
+                conteo_frames_letra = 0
+                
+                # Resetea la ultima letra cuando la mano desaparece unos instantes, 
+                # así puedes tipear la misma letra dos veces separando la mano.
+                if conteo_frames_sin_mano > 10:
+                    ultima_letra_agregada = None
+                
+                # Si pasa suficiente tiempo sin mano, agregamos un espacio y paramos de contar
+                if conteo_frames_sin_mano == FRAMES_PARA_ESPACIO:
+                    if len(palabra_actual) > 0 and palabra_actual[-1] != " ":
+                        palabra_actual += " "
+                
+                cv2.putText(
+                    frame, "Coloca la mano frente a la camara",
+                    (10, alto // 2 - 50), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2
+                )
+                
+                # UI: Mostrar Progreso para registrar Espacio
+                if conteo_frames_sin_mano < FRAMES_PARA_ESPACIO and len(palabra_actual) > 0 and palabra_actual[-1] != " ":
+                    progreso = conteo_frames_sin_mano / FRAMES_PARA_ESPACIO
+                    cv2.putText(frame, "Agregando espacio...", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 1)
+                    cv2.rectangle(frame, (10, 70), (10 + int(200 * progreso), 80), (255, 255, 0), -1)
+                    cv2.rectangle(frame, (10, 70), (210, 80), (255, 255, 255), 1)
+
+            # UI: Mostrar la palabra construida en la parte inferior
+            cv2.rectangle(frame, (0, alto - 80), (ancho, alto), (0, 0, 0), -1)
+            cv2.putText(
+                frame, f"Palabra: {palabra_actual}",
+                (20, alto - 30), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (255, 255, 255), 3
+            )
+            
+            # Instrucciones en texto pequeño
+            cv2.putText(
+                frame, "L: Limpiar | BORRAR: Deshacer | Q: Salir",
+                (ancho - 350, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 200), 1
+            )
+
+            cv2.imshow("Crear Palabras - Modo Automatico", frame)
+            
+            tecla = cv2.waitKey(1) & 0xFF
+            if tecla == ord("q"):
+                break
+            elif tecla == ord("l"):
+                palabra_actual = ""
+            elif tecla == 8 or tecla == 127: # Tecla Backspace
+                if len(palabra_actual) > 0:
+                    palabra_actual = palabra_actual[:-1]
+                # Reiniciar estado
+                ultima_letra_agregada = None
+                prediccion_actual = None
+
+    cap.release()
+    cv2.destroyAllWindows()
+
+
+if __name__ == "__main__":
+    main()
