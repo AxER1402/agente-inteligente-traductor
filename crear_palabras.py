@@ -9,6 +9,9 @@ import joblib
 import mediapipe as mp
 import numpy as np
 
+import threading
+import pyttsx3
+
 mp_hands = mp.solutions.hands
 mp_drawing = mp.solutions.drawing_utils
 mp_drawing_styles = mp.solutions.drawing_styles
@@ -20,12 +23,35 @@ FRAMES_PARA_LETRAS = 20  # ~1 segundo a 20-30 FPS
 FRAMES_PARA_ESPACIO = 40  # ~1.5 - 2 segundos sin manos para registrar un espacio
 
 
+def hablar_texto(texto: str):
+    """Reproduce el texto de forma asincrona para no congelar la camara."""
+    if not texto.strip():
+        return
+    def tts():
+        engine = pyttsx3.init()
+        # Ajustar velocidad si se desea
+        engine.setProperty("rate", 140)
+        engine.say(texto)
+        engine.runAndWait()
+    
+    hilo = threading.Thread(target=tts, daemon=True)
+    hilo.start()
+
 def extraer_landmarks(hand_landmarks) -> np.ndarray:
-    """Extrae los 21 puntos (x, y, z) como vector de 63 valores."""
+    """Extrae los 21 puntos (x, y, z) normalizados por posicion y escala."""
     puntos = []
+    base_x = hand_landmarks.landmark[0].x
+    base_y = hand_landmarks.landmark[0].y
+    base_z = hand_landmarks.landmark[0].z
     for lm in hand_landmarks.landmark:
-        puntos.extend([lm.x, lm.y, lm.z])
-    return np.array(puntos, dtype=np.float32).reshape(1, -1)
+        puntos.extend([lm.x - base_x, lm.y - base_y, lm.z - base_z])
+    
+    # Normalizacion de escala (tamano)
+    puntos_np = np.array(puntos, dtype=np.float32)
+    max_val = np.max(np.abs(puntos_np))
+    if max_val > 0:
+        puntos_np = puntos_np / max_val
+    return puntos_np.reshape(1, -1)
 
 
 def main():
@@ -149,8 +175,8 @@ def main():
             
             # Instrucciones en texto pequeño
             cv2.putText(
-                frame, "L: Limpiar | BORRAR: Deshacer | Q: Salir",
-                (ancho - 350, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 200), 1
+                frame, "L: Limpiar | BORRAR: Deshacer | V: Hablar | Q: Salir",
+                (ancho - 480, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 200), 1
             )
 
             cv2.imshow("Crear Palabras - Modo Automatico", frame)
@@ -160,6 +186,8 @@ def main():
                 break
             elif tecla == ord("l"):
                 palabra_actual = ""
+            elif tecla == ord("v"):
+                hablar_texto(palabra_actual)
             elif tecla == 8 or tecla == 127: # Tecla Backspace
                 if len(palabra_actual) > 0:
                     palabra_actual = palabra_actual[:-1]

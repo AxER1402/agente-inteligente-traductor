@@ -84,6 +84,21 @@ python predecir_seña.py
 
 Abre la cámara y muestra la etiqueta detectada cuando coloques la mano frente a la cámara. Presiona **Q** para salir.
 
+**3. Crear palabras y hablar (interactivo):**
+
+Para usar el modo automático donde el sistema enlaza letras para formar palabras y las dice en voz alta, primero asegúrate de tener la librería de voz instalada:
+
+```bash
+pip install pyttsx3
+python crear_palabras.py
+```
+
+En este modo:
+- Deja tu mano quieta 1 segundo para fijar la letra automáticamente.
+- Quita la mano de la cámara por 2 segundos para agregar un espacio automáticamente.
+- Presiona **V** para que la IA lea en voz alta la palabra/frase formada.
+- Presiona **L** para limpiar la pantalla o **Retroceso** para borrar la última letra.
+
 ## Los 21 puntos (landmarks) de la mano
 
 MediaPipe detecta 21 puntos clave por mano:
@@ -97,4 +112,52 @@ MediaPipe detecta 21 puntos clave por mano:
 | 12-15  | ANULAR      | MCP, PIP, DIP, TIP     |
 | 16-19  | MENIQUE     | MCP, PIP, DIP, TIP     |
 
-Cada punto tiene coordenadas **normalizadas** (x, y, z) en el rango 0-1, ideales para entrenar modelos de ML más adelante.
+Cada punto tiene coordenadas normalizadas por posicion (relativas a la muneca) y por escala, ideales para entrenar el modelo de ML y garantizar alta precision sin importar la distancia a la camara.
+
+---
+
+## Preguntas Frecuentes y Arquitectura del Proyecto (FAQ)
+
+### 1. ¿Qué lenguaje estás usando principalmente en el proyecto?
+Python (específicamente compatible con Python 3.9+).
+
+### 2. ¿Qué librerías o frameworks estás usando para la IA?
+- **MediaPipe:** Para la detección y seguimiento de las manos.
+- **OpenCV (`cv2`):** Para capturar el video de la cámara en vivo y dibujar la interfaz gráfica.
+- **Scikit-Learn:** Para el algoritmo de Machine Learning.
+- **NumPy & Pandas:** Para la manipulación rápida de los datos y cálculos matemáticos (normalización).
+
+### 3. ¿Cómo estás detectando la mano?
+Utilizando el módulo **MediaPipe Hands** de Google. Este modelo preentrenado analiza el relieve de la mano y extrae 21 *landmarks* (puntos clave) en un espacio tridimensional (X, Y, Z).
+
+### 4. ¿Qué modelo estás usando para reconocer las señas?
+Se utiliza un **RandomForestClassifier** (Clasificador de Bosques Aleatorios). Es un algoritmo clásico de Machine Learning muy rápido y eficiente para datos tabulares (como nuestras 63 coordenadas). No es una Red Neuronal Convolucional (CNN) pura de imágenes, ya que nosotros no le pasamos fotos de la mano al modelo, sino una lista de números (las coordenadas extraídas por MediaPipe).
+
+### 5. ¿El modelo lo entrenaste vos o están usando uno ya preentrenado?
+El modelo **lo entrena el propio usuario desde cero**. MediaPipe (que extrae la mano) sí es un modelo preentrenado por Google, pero el "cerebro" que sabe qué significa cada seña se entrena localmente utilizando los datos que el usuario captura con el script `recolectar_dataset.py`.
+
+### 6. ¿Cómo es el flujo del sistema?
+El flujo (pipeline) es el siguiente:
+1. **Cámara (OpenCV):** Captura el fotograma de video actual.
+2. **Detección (MediaPipe):** Encuentra la mano en la imagen y extrae las coordenadas de las 21 articulaciones.
+3. **Procesamiento Matemático (NumPy):** Las coordenadas se normalizan (se hacen relativas a la muñeca y se ajusta la escala según la distancia a la cámara). Esto genera 63 valores.
+4. **Predicción (Scikit-Learn):** Se envían los 63 valores al `modelo.pkl` (Random Forest), el cual devuelve la letra más probable y su nivel de confianza.
+5. **Interfaz Visual (OpenCV):** Se dibuja el esqueleto de la mano, la letra detectada, y la palabra formada en la ventana de video.
+
+### 7. ¿El sistema funciona en tiempo real o por imágenes?
+El sistema funciona en **tiempo real**, analizando el flujo de video en vivo (frame a frame) a 30 FPS.
+
+### 8. ¿Están usando base de datos?
+No se utiliza una base de datos relacional tradicional (como MySQL o PostgreSQL). Se utiliza un archivo plano **`dataset.csv`** que actúa como "base de datos". 
+- **Información que guarda (Columnas):** Tiene 63 columnas numéricas (`x0, y0, z0, x1, y1, z1 ...`) que representan las posiciones tridimensionales de cada dedo, y una columna final llamada `etiqueta` que contiene el nombre de la letra o seña correspondiente a esos puntos.
+
+### 9. ¿El sistema tiene interfaz (pantalla) o solo consola?
+Tiene una **interfaz gráfica superpuesta en la ventana de video** generada directamente por OpenCV (`cv2.imshow`). En ella se pueden visualizar barras de progreso, cuadros delimitadores, esqueletos de manos, detecciones en tiempo real y el texto de las palabras generadas.
+
+### 10. ¿Dónde corre el sistema?
+Es una **aplicación de escritorio local**. Se ejecuta directamente en la terminal de la computadora (Mac, Windows o Linux) utilizando el intérprete de Python instalado en el sistema.
+
+### 11. ¿Qué salida da exactamente el sistema?
+Depende del script que ejecutes:
+- Si corres `predecir_senia.py`: Salida en tiempo real de la **letra analizada** en ese milisegundo.
+- Si corres `crear_palabras.py`: Da como salida **texto acumulado (palabras formadas)**. Cuenta con un sistema automático de "bloqueo" temporal de señas e inserción inteligente de espacios (detectando la ausencia de manos) para ir escribiendo oraciones letra por letra.

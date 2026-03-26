@@ -18,11 +18,20 @@ ARCHIVO_MODELO = "modelo.pkl"
 
 
 def extraer_landmarks(hand_landmarks) -> np.ndarray:
-    """Extrae los 21 puntos (x, y, z) como vector de 63 valores."""
+    """Extrae los 21 puntos (x, y, z) normalizados por posicion y escala."""
     puntos = []
+    base_x = hand_landmarks.landmark[0].x
+    base_y = hand_landmarks.landmark[0].y
+    base_z = hand_landmarks.landmark[0].z
     for lm in hand_landmarks.landmark:
-        puntos.extend([lm.x, lm.y, lm.z])
-    return np.array(puntos, dtype=np.float32).reshape(1, -1)
+        puntos.extend([lm.x - base_x, lm.y - base_y, lm.z - base_z])
+    
+    # Normalizacion de escala (tamano)
+    puntos_np = np.array(puntos, dtype=np.float32)
+    max_val = np.max(np.abs(puntos_np))
+    if max_val > 0:
+        puntos_np = puntos_np / max_val
+    return puntos_np.reshape(1, -1)
 
 
 def main():

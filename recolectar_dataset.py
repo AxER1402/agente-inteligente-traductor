@@ -20,11 +20,20 @@ ARCHIVO_DATASET = "dataset.csv"
 
 
 def extraer_landmarks(hand_landmarks) -> np.ndarray:
-    """Extrae los 21 puntos (x, y, z) normalizados de la mano."""
+    """Extrae los 21 puntos (x, y, z) normalizados por posicion (muneca) y escala."""
     puntos = []
+    base_x = hand_landmarks.landmark[0].x
+    base_y = hand_landmarks.landmark[0].y
+    base_z = hand_landmarks.landmark[0].z
     for lm in hand_landmarks.landmark:
-        puntos.extend([lm.x, lm.y, lm.z])
-    return np.array(puntos, dtype=np.float32)
+        puntos.extend([lm.x - base_x, lm.y - base_y, lm.z - base_z])
+    
+    # Normalizacion de escala (tamano)
+    puntos_np = np.array(puntos, dtype=np.float32)
+    max_val = np.max(np.abs(puntos_np))
+    if max_val > 0:
+        puntos_np = puntos_np / max_val
+    return puntos_np
 
 
 def guardar_muestra(puntos: np.ndarray, etiqueta: str) -> None:
