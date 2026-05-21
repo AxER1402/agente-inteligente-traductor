@@ -1,5 +1,16 @@
 # Agente Inteligente - Detector de Lenguaje de Señas
 
+## 🚀 Avances Actuales
+El proyecto actualmente cuenta con las siguientes características completamente funcionales:
+- **Detección de manos:** Extracción precisa de los 21 *landmarks* (puntos clave) mediante MediaPipe, independientemente de la distancia o escala y en tiempo real.
+- **Creación de Dataset Personalizado:** Herramienta para capturar, normalizar y estructurar los datos extraídos de la cámara web para un rápido entrenamiento local.
+- **Modelo de Machine Learning entrenado:** Clasificación de bosque aleatorio (Random Forest) que reconoce casi todo el abecedario del lenguaje de señas con gran precisión y exactitud.
+- **Predicción y Traducción Continua:** El sistema detecta en tiempo real la confiabilidad y la letra de la seña que se está formando.
+- **Sistema Interactivo "Texto a Voz":** (¡Último Avance!) Se implementó un flujo continuo donde el usuario puede deletrear construyendo palabras completas. El sistema detecta pausas de 1 segundo para fijar letras y pausas más largas para insertar espacios de forma inteligente. Finalmente, es capaz de **leer las frases en voz alta** utilizando `pyttsx3`.
+
+---
+
+## 🛠️ Ejecutar el Proyecto
 Paso 1: **Detección de mano y extracción de landmarks** usando OpenCV, MediaPipe y NumPy.
 
 ## Ejecutar el Proyecto
