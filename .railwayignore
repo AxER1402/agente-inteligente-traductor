@@ -1,0 +1,21 @@
+# Git
+.git
+.gitignore
+
+# Python cache
+__pycache__
+*.pyc
+*.pyo
+.pytest_cache
+
+# macOS
+.DS_Store
+
+# Scripts de escritorio/recolección (no necesarios en el servidor)
+recolectar_dataset.py
+crear_palabras.py
+detector_mano.py
+predecir_senia.py
+
+# Docker compose local
+docker-compose.yml
