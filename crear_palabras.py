@@ -5,12 +5,12 @@ Abre la cámara, detecta la mano y forma una palabra a partir de las detecciones
 
 import os
 import cv2
-import joblib
-import mediapipe as mp
-import numpy as np
-
 import threading
 import pyttsx3
+import collections
+import mediapipe as mp
+import numpy as np
+import joblib
 
 mp_hands = mp.solutions.hands
 mp_drawing = mp.solutions.drawing_utils
@@ -54,6 +54,50 @@ def extraer_landmarks(hand_landmarks) -> np.ndarray:
     return puntos_np.reshape(1, -1)
 
 
+def detectar_gesto_dinamico(historial_muneca, prediccion_estatica):
+    """
+    Analiza la trayectoria de la muñeca (Landmark 0) en los últimos frames
+    para detectar letras con movimiento (J, Z, X).
+    """
+    if len(historial_muneca) < 15:
+        return prediccion_estatica
+        
+    y_coords = [p[1] for p in historial_muneca]
+    x_coords = [p[0] for p in historial_muneca]
+    
+    desplazamiento_y = y_coords[-1] - y_coords[0]
+    desplazamiento_x = x_coords[-1] - x_coords[0]
+    distancia_total = (desplazamiento_x**2 + desplazamiento_y**2)**0.5
+    
+    max_x = max(x_coords)
+    min_x = min(x_coords)
+
+    # Heurística para la J: Pose base 'I' (meñique levantado) + curva hacia abajo
+    if prediccion_estatica in ['I', 'J']:
+        if desplazamiento_y > 0.08 and distancia_total > 0.1:
+            return 'J'
+        return 'I'
+        
+    # Heurística para la Z: Pose base 'D' (índice levantado) + movimiento amplio (zigzag)
+    if prediccion_estatica in ['D', 'Z']:
+        if distancia_total > 0.15:
+            return 'Z'
+        return 'D'
+        
+    # Heurística para la X: Pose base 'X'/'Q' (gancho índice) + tirón hacia abajo
+    if prediccion_estatica in ['X', 'Q']:
+        if desplazamiento_y > 0.05:
+            return 'X'
+            
+    # Heurística para la Ñ: Pose base 'N' + movimiento horizontal (oscilación)
+    if prediccion_estatica in ['N', 'Ñ']:
+        if (max_x - min_x) > 0.06:
+            return 'Ñ'
+        return 'N'
+            
+    return prediccion_estatica
+
+
 def main():
     if not os.path.exists(ARCHIVO_MODELO):
         print(f"Error: No existe {ARCHIVO_MODELO}")
@@ -74,6 +118,9 @@ def main():
     conteo_frames_letra = 0
     ultima_letra_agregada = None
     conteo_frames_sin_mano = 0
+    
+    # Buffer para el historial de la muñeca (últimos 20 frames)
+    historial_muneca = collections.deque(maxlen=20)
 
     with mp_hands.Hands(
         model_complexity=0,
@@ -108,6 +155,12 @@ def main():
                 etiqueta = modelo.predict(puntos)[0]
                 proba = modelo.predict_proba(puntos)[0]
                 confianza = max(proba)
+                
+                # Guardar la coordenada normalizada de la muñeca (x, y)
+                historial_muneca.append((hand_landmarks.landmark[0].x, hand_landmarks.landmark[0].y))
+                
+                # APLICAR HEURÍSTICA DE MOVIMIENTO
+                etiqueta = detectar_gesto_dinamico(historial_muneca, etiqueta)
 
                 if confianza > 0.6:  # Solo confiar si hay buena probabilidad
                     # Si la etiqueta es la misma que estamos viendo, incrementamos contador
@@ -143,6 +196,7 @@ def main():
                 conteo_frames_sin_mano += 1
                 prediccion_actual = None
                 conteo_frames_letra = 0
+                historial_muneca.clear()
                 
                 # Resetea la ultima letra cuando la mano desaparece unos instantes, 
                 # así puedes tipear la misma letra dos veces separando la mano.
